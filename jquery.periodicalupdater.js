@@ -32,7 +32,8 @@
 					autoStopCallback: null, // The callback to execute when we autoStop
 					cookie: false,		// whether (and how) to store a cookie
 					runatonce: false, // Whether to fire initially or wait
-					verbose: 0				// The level to be logging at: 0 = none; 1 = some; 2 = all
+					verbose: 0,				// The level to be logging at: 0 = none; 1 = some; 2 = all
+					shouldRunCallback: null // The callback to execute to see if we javascript has new data to send. Expected result: bool
 				}, options);
 
 			var pu_log = function (msg, lvl) {
@@ -143,17 +144,30 @@
 							}
 						}
 
-						if (force || maxCalls === 0) {
-								pu_log("Sending data");
-								$(function() { $.ajax(toSend); });
-						} else if (maxCalls > 0 && calls < maxCalls) {
-								pu_log("Sending data because we are at " + calls	+ " of " + maxCalls + " calls");
-								$(function() { $.ajax(toSend); });
-								calls++;
-						} else if(maxCalls == -1) {
-							pu_log("NOT sending data: stop has been called", 1);
-						} else {
-							pu_log("NOT sending data: maximum number of calls reached - " + maxCalls, 1);
+						shouldRun = true;
+						if (settings.shouldRunCallback) { shouldRun = settings.shouldRunCallback(); }
+						
+						if (shouldRun)
+						{
+							if (force || maxCalls === 0) {
+									pu_log("Sending data");
+									$(function() { $.ajax(toSend); });
+							} else if (maxCalls > 0 && calls < maxCalls) {
+									pu_log("Sending data because we are at " + calls	+ " of " + maxCalls + " calls");
+									$(function() { $.ajax(toSend); });
+									calls++;
+							} else if(maxCalls == -1) {
+								pu_log("NOT sending data: stop has been called", 1);
+							} else {
+								pu_log("NOT sending data: maximum number of calls reached - " + maxCalls, 1);
+							}
+						}
+						else
+						{
+							pu_log("NOT sending data: shouldRunCallback rejected", 1);
+							
+							boostPeriod(); // pretend that we had an identical result
+/* 							reset_timer(settings.minTimeout); */
 						}
 				}
 
@@ -205,6 +219,7 @@
 										if (autoStop > 0) {
 												noChange++;
 												if (noChange == autoStop) {
+														pu_log("Autostopping", 1);
 														handle.stop();
 														if (settings.autoStopCallback) { settings.autoStopCallback(noChange); }
 														return;
